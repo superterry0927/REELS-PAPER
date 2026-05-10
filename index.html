@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>短影音 60 秒腳本生成器</title>
+    <!-- 引入 Tailwind CSS 用於快速造型 -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 引入 Font Awesome 用於圖標 -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts: Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6; /* Tailwind gray-100 */
+        }
+        
+        .loading-spinner {
+            border: 4px solid rgba(0, 0, 0, 0.1);
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            border-left-color: #4f46e5; /* Tailwind indigo-600 */
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* 腳本輸出區的 Markdown 樣式簡化版 */
+        .markdown-body h3 { font-size: 1.25rem; font-weight: 600; margin-top: 1rem; margin-bottom: 0.5rem; color: #1f2937; }
+        .markdown-body p { margin-bottom: 0.75rem; color: #4b5563; line-height: 1.6; }
+        .markdown-body ul { list-style-type: disc; padding-left: 1.5rem; margin-bottom: 0.75rem; color: #4b5563; }
+        .markdown-body li { margin-bottom: 0.25rem; }
+        .markdown-body strong { font-weight: 600; color: #111827; }
+    </style>
+</head>
+<body class="min-h-screen p-4 md:p-8 flex items-start justify-center">
+
+    <div class="max-w-2xl w-full bg-white rounded-2xl shadow-xl overflow-hidden flex flex-col h-auto my-4 md:my-8">
+        
+        <!-- 上半部：輸入表單 -->
+        <div class="w-full p-6 md:p-8 border-b border-gray-200 bg-gray-50">
+            <h1 class="text-2xl font-bold text-gray-800 mb-2">
+                <i class="fa-solid fa-clapperboard text-indigo-600 mr-2"></i>短影音腳本生成器
+            </h1>
+            <p class="text-sm text-gray-500 mb-6">輸入細節，AI 為您打造專屬的 60 秒爆款直式影片腳本。</p>
+
+            <form id="script-form" class="space-y-5">
+                <!-- 影片主題 -->
+                <div>
+                    <label for="topic" class="block text-sm font-medium text-gray-700 mb-1">影片主題 (必填)</label>
+                    <input type="text" id="topic" name="topic" required placeholder="例如：新開幕的日式咖啡廳開箱" 
+                           class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors">
+                </div>
+
+                <!-- 核心元素/關鍵字 -->
+                <div>
+                    <label for="elements" class="block text-sm font-medium text-gray-700 mb-1">核心元素 / 關鍵字 (必填)</label>
+                    <input type="text" id="elements" name="elements" required placeholder="例如：抹茶千層、文青風、貓咪店長" 
+                           class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors">
+                </div>
+
+                <!-- 人物設定 -->
+                <div>
+                    <label for="characters" class="block text-sm font-medium text-gray-700 mb-1">人物設定</label>
+                    <input type="text" id="characters" name="characters" placeholder="例如：活潑的美食部落客 (單人出鏡)" 
+                           class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors">
+                </div>
+
+                <!-- 細節要求 -->
+                <div>
+                    <label for="details" class="block text-sm font-medium text-gray-700 mb-1">特別要求 / 細節 (選填)</label>
+                    <textarea id="details" name="details" rows="4" placeholder="例如：前 3 秒要有強烈的視覺衝擊，結尾要呼籲觀眾留言標記朋友一起來。語氣要輕鬆幽默。" 
+                              class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors resize-none"></textarea>
+                </div>
+
+                <!-- 隱藏的 API 金鑰欄位 (Canvas 會自動處理，但保留結構以便理解) -->
+                <!-- <input type="hidden" id="api-key" value=""> -->
+
+                <!-- 提交按鈕 -->
+                <button type="submit" id="generate-btn" 
+                        class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-3 px-4 rounded-lg transition-colors flex justify-center items-center">
+                    <span>生成腳本</span>
+                    <i class="fa-solid fa-wand-magic-sparkles ml-2"></i>
+                </button>
+            </form>
+            
+            <div id="error-message" class="hidden mt-4 p-3 bg-red-100 text-red-700 rounded-lg text-sm"></div>
+        </div>
+
+        <!-- 下半部：生成結果展示 -->
+        <div id="result-section" class="w-full p-6 md:p-8 flex flex-col bg-white relative min-h-[400px]">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-xl font-bold text-gray-800">腳本結果</h2>
+                
+                <!-- 複製按鈕 -->
+                <button id="copy-btn" class="hidden text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 py-1.5 px-3 rounded-md transition-colors flex items-center">
+                    <i class="fa-regular fa-copy mr-1.5"></i> <span>複製</span>
+                </button>
+            </div>
+
+            <!-- 結果顯示區 -->
+            <div id="result-container" class="flex-grow border border-gray-200 rounded-xl bg-gray-50 p-6 overflow-y-auto relative">
+                
+                <!-- 初始狀態文字 -->
+                <div id="initial-state" class="absolute inset-0 flex flex-col items-center justify-center text-gray-400">
+                    <i class="fa-regular fa-file-lines text-4xl mb-3 opacity-50"></i>
+                    <p>等待生成腳本...</p>
+                </div>
+
+                <!-- 載入中動畫 -->
+                <div id="loading-state" class="hidden absolute inset-0 flex flex-col items-center justify-center bg-gray-50 z-10">
+                    <div class="loading-spinner mb-4"></div>
+                    <p class="text-indigo-600 font-medium">AI 正在努力撰寫腳本中...</p>
+                </div>
+
+                <!-- 實際輸出的 Markdown 內容 -->
+                <div id="output-content" class="markdown-body hidden"></div>
+            </div>
+            
+            <!-- 複製成功提示 (吐司通知) -->
+            <div id="toast" class="absolute bottom-8 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white px-4 py-2 rounded-lg text-sm shadow-lg opacity-0 transition-opacity duration-300 pointer-events-none">
+                已複製到剪貼簿！
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const form = document.getElementById('script-form');
+            const generateBtn = document.getElementById('generate-btn');
+            const copyBtn = document.getElementById('copy-btn');
+            const initialState = document.getElementById('initial-state');
+            const loadingState = document.getElementById('loading-state');
+            const outputContent = document.getElementById('output-content');
+            const resultContainer = document.getElementById('result-container');
+            const errorMessage = document.getElementById('error-message');
+            const toast = document.getElementById('toast');
+
+            // 簡單的 Markdown 轉 HTML 函式 (因為我們沒有引入 marked.js，所以自己做簡單轉換)
+            function simpleMarkdownToHtml(text) {
+                let html = text;
+                // 轉換粗體 **text**
+                html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+                // 轉換標題 ### text
+                html = html.replace(/^### (.*$)/gim, '<h3>$1</h3>');
+                html = html.replace(/^## (.*$)/gim, '<h3>$1</h3>'); // 將 h2 也視為 h3 大小處理
+                // 轉換無序列表 - text 或 * text
+                html = html.replace(/^[\*\-] (.*$)/gim, '<ul><li>$1</li></ul>');
+                // 合併相鄰的 ul
+                html = html.replace(/<\/ul>\n<ul>/g, '\n');
+                // 段落處理 (將換行轉換為 <p> 或 <br>)
+                // 將連續兩個換行視為段落分隔
+                html = html.split(/\n\s*\n/).map(p => `<p>${p.replace(/\n/g, '<br>')}</p>`).join('');
+                
+                return html;
+            }
+
+            // 顯示載入狀態
+            function showLoading() {
+                generateBtn.disabled = true;
+                generateBtn.classList.add('opacity-70', 'cursor-not-allowed');
+                initialState.classList.add('hidden');
+                outputContent.classList.add('hidden');
+                copyBtn.classList.add('hidden');
+                errorMessage.classList.add('hidden');
+                loadingState.classList.remove('hidden');
+                loadingState.classList.add('flex');
+            }
+
+            // 隱藏載入狀態並顯示結果
+            function showResult(text) {
+                generateBtn.disabled = false;
+                generateBtn.classList.remove('opacity-70', 'cursor-not-allowed');
+                loadingState.classList.add('hidden');
+                loadingState.classList.remove('flex');
+                
+                // 處理並顯示文本
+                outputContent.innerHTML = simpleMarkdownToHtml(text);
+                // 儲存原始文本供複製使用
+                outputContent.setAttribute('data-raw-text', text);
+                
+                outputContent.classList.remove('hidden');
+                copyBtn.classList.remove('hidden');
+                
+                // 平滑滾動到結果區塊 (方便手機版操作)
+                document.getElementById('result-section').scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+
+            // 顯示錯誤
+            function showError(msg) {
+                generateBtn.disabled = false;
+                generateBtn.classList.remove('opacity-70', 'cursor-not-allowed');
+                loadingState.classList.add('hidden');
+                loadingState.classList.remove('flex');
+                
+                if (outputContent.classList.contains('hidden')) {
+                    initialState.classList.remove('hidden');
+                }
+                
+                errorMessage.textContent = msg;
+                errorMessage.classList.remove('hidden');
+            }
+
+            // 顯示吐司通知
+            function showToast() {
+                toast.classList.remove('opacity-0');
+                setTimeout(() => {
+                    toast.classList.add('opacity-0');
+                }, 2000);
+            }
+
+            form.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                
+                const topic = document.getElementById('topic').value;
+                const elements = document.getElementById('elements').value;
+                const characters = document.getElementById('characters').value || '未指定';
+                const details = document.getElementById('details').value || '無';
+
+                showLoading();
+
+                // 構建 System Prompt (設定 AI 角色與規則)
+                const systemPrompt = `你是一位專業的短影音導演與編劇。
+你的任務是根據使用者提供的主題、元素、人物和細節，生成一份專為「直式短影音（如 TikTok, IG Reels, YouTube Shorts）」設計的「60秒」拍攝腳本。
+
+腳本格式必須包含以下結構，並使用 Markdown 排版：
+1. **標題建議** (提供 3 個吸睛標題)
+2. **影片資訊** (總時長、核心受眾、整體氛圍)
+3. **分鏡腳本** (以表格或清晰列表呈現，包含：時間段、畫面/動作指示、旁白/台詞、音效/視覺特效)。請將 60 秒拆分為合理的分鏡 (例如 0-3秒黃金開頭, 3-15秒引入, 等等)。
+4. **拍攝建議** (燈光、運鏡、道具提醒等)
+
+請確保內容具備病毒傳播潛力，開頭前 3 秒必須極具吸引力。`;
+
+                // 構建 User Prompt
+                const userQuery = `請幫我寫一份60秒短影音腳本。
+- 影片主題：${topic}
+- 核心元素/關鍵字：${elements}
+- 人物設定：${characters}
+- 特別要求/細節：${details}`;
+
+                try {
+                    // API Key 在此環境中預設為空字串即可自動帶入
+                    const apiKey = ""; 
+                    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
+
+                    const payload = {
+                        contents: [{ parts: [{ text: userQuery }] }],
+                        systemInstruction: {
+                            parts: [{ text: systemPrompt }]
+                        },
+                        // 可選：設定生成溫度，讓腳本有點創意但不要太失控
+                        generationConfig: {
+                            temperature: 0.7,
+                        }
+                    };
+
+                    const response = await fetch(apiUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+
+                    if (!response.ok) {
+                        throw new Error(`API 請求失敗: ${response.status} ${response.statusText}`);
+                    }
+
+                    const result = await response.json();
+                    
+                    if (result.candidates && result.candidates.length > 0 && 
+                        result.candidates[0].content && result.candidates[0].content.parts && 
+                        result.candidates[0].content.parts.length > 0) {
+                        
+                        const generatedText = result.candidates[0].content.parts[0].text;
+                        showResult(generatedText);
+                        
+                    } else {
+                        throw new Error('API 返回的資料結構不如預期');
+                    }
+
+                } catch (error) {
+                    console.error("生成腳本時發生錯誤:", error);
+                    showError("生成失敗，請稍後再試或檢查網路連線。");
+                }
+            });
+
+            // 複製按鈕點擊事件
+            copyBtn.addEventListener('click', () => {
+                const textToCopy = outputContent.getAttribute('data-raw-text');
+                
+                if (!textToCopy) return;
+
+                // 使用 document.execCommand 作為後備方案 (在 iframe 環境較穩)
+                const textArea = document.createElement("textarea");
+                textArea.value = textToCopy;
+                // 避免滾動到頁面底部
+                textArea.style.top = "0";
+                textArea.style.left = "0";
+                textArea.style.position = "fixed";
+                document.body.appendChild(textArea);
+                textArea.focus();
+                textArea.select();
+
+                try {
+                    const successful = document.execCommand('copy');
+                    if (successful) {
+                        showToast();
+                        // 變更按鈕圖示與文字提供回饋
+                        const originalHtml = copyBtn.innerHTML;
+                        copyBtn.innerHTML = '<i class="fa-solid fa-check mr-1.5 text-green-600"></i> <span class="text-green-600">已複製</span>';
+                        setTimeout(() => {
+                            copyBtn.innerHTML = originalHtml;
+                        }, 2000);
+                    } else {
+                        console.error('Fallback: 複製指令失敗');
+                        alert('複製失敗，請手動選取文字複製。');
+                    }
+                } catch (err) {
+                    console.error('Fallback: 複製失敗', err);
+                    alert('複製失敗，請手動選取文字複製。');
+                }
+
+                document.body.removeChild(textArea);
+            });
+        });
+    </script>
+</body>
+</html>
