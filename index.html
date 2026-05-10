@@ -236,6 +236,8 @@
                 const systemPrompt = `你是一位專業的短影音導演與編劇。
 你的任務是根據使用者提供的主題、元素、人物和細節，生成一份專為「直式短影音（如 TikTok, IG Reels, YouTube Shorts）」設計的「60秒」拍攝腳本。
 
+請務必參考您透過 Google 搜尋獲得的最新資訊與事實（若有），讓腳本內容更加貼近現實、包含真實的細節（例如真實的店名、特色餐點、最新活動等）。
+
 腳本格式必須包含以下結構，並使用 Markdown 排版：
 1. **標題建議** (提供 3 個吸睛標題)
 2. **影片資訊** (總時長、核心受眾、整體氛圍)
@@ -260,6 +262,10 @@
                         systemInstruction: {
                             parts: [{ text: systemPrompt }]
                         },
+                        // 新增：啟用 Google 搜尋工具 (聯網功能)，讓模型可以參考最新網路事實
+                        tools: [
+                            { googleSearch: {} }
+                        ],
                         // 可選：設定生成溫度，讓腳本有點創意但不要太失控
                         generationConfig: {
                             temperature: 0.7,
